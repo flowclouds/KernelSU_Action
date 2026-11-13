@@ -30,28 +30,31 @@ case "$KERNEL_SOURCE" in
 	if retry 3 git clone -q --depth=1 -b "$MODULES_BRANCH" "$MODULES_SOURCE" "$MOD_DIR"; then
 		mkdir -p "${KERNEL_DIR}/vendor"
 		[ -d "$MOD_DIR/vendor" ] && cp -a "$MOD_DIR/vendor/." "${KERNEL_DIR}/vendor/"
-		if [ -d "$MOD_DIR/kernel/msm-5.4/techpack" ]; then
-			mkdir -p "${KERNEL_DIR}/techpack"
-			cp -a "$MOD_DIR/kernel/msm-5.4/techpack/." "${KERNEL_DIR}/techpack/"
-		fi
+		# 注意：不拷贝 techpack，其子 Makefile 依赖 OPPO 内部布局，直接并入会导致子 make 失败
 		# 树内存在指向 ../../../vendor/oplus/... 的符号链接（会跳出树外），
 		# 用 modules 仓库的实体目录替换，避免 Kconfig 打不开
-		fixed=0
+		fixed=0; failed=0; miss=0
 		while IFS= read -r l; do
 			tgt=$(readlink "$l" 2>/dev/null) || continue
 			case "$tgt" in
 			*vendor/oplus/*)
 				rel=${tgt##*vendor/}
 				src_path="$MOD_DIR/vendor/$rel"
-				if [ -d "$src_path" ]; then
-					rm -f "$l"
-					cp -a "$src_path" "$l"
-					fixed=$((fixed + 1))
+				if [ -e "$src_path" ]; then
+					rm -rf "$l"
+					if cp -a --remove-destination "$src_path" "$l" 2>/dev/null; then
+						fixed=$((fixed + 1))
+					else
+						warn "failed to materialise ${l} from ${src_path}"
+						failed=$((failed + 1))
+					fi
+				else
+					miss=$((miss + 1))
 				fi
 				;;
 			esac
 		done < <(find "${KERNEL_DIR}" -type l 2>/dev/null)
-		ok "vendor overlay applied (symlinks repaired: ${fixed})"
+		ok "vendor overlay applied (repaired: ${fixed}, failed: ${failed}, target-missing: ${miss})"
 	else
 		warn "modules repo clone failed; vendor overlay skipped"
 	fi
