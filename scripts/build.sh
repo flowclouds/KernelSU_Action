@@ -132,6 +132,18 @@ build_kernel() {
 	fi
 
 	cd "$KERNEL_DIR"
+	# QCOM/OPPO 的 vendor/*.config 是 fragment，必须先有基线 .config 才能合并
+	BASE_DEFCONFIG="${BASE_DEFCONFIG:-gki_defconfig}"
+	case "${KERNEL_CONFIG}" in
+	*/*|*GKI*|*QGKI*)
+		if [ "${KERNEL_CONFIG}" != "${BASE_DEFCONFIG}" ] && [ -f "arch/${ARCH}/configs/${BASE_DEFCONFIG}" ]; then
+			info "base defconfig: make ${args} ${BASE_DEFCONFIG}"
+			# shellcheck disable=SC2086
+			make -j"$(nproc --all)" CC=clang $args "${BASE_DEFCONFIG}" \
+				|| die "base defconfig generation failed"
+		fi
+		;;
+	esac
 	info "make ${args} ${KERNEL_CONFIG}"
 	# shellcheck disable=SC2086
 	make -j"$(nproc --all)" CC=clang $args "${KERNEL_CONFIG}" \
