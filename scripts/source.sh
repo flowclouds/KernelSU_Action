@@ -30,7 +30,14 @@ case "$KERNEL_SOURCE" in
 	if retry 3 git clone -q --depth=1 -b "$MODULES_BRANCH" "$MODULES_SOURCE" "$MOD_DIR"; then
 		mkdir -p "${KERNEL_DIR}/vendor"
 		[ -d "$MOD_DIR/vendor" ] && cp -a "$MOD_DIR/vendor/." "${KERNEL_DIR}/vendor/"
-		# 注意：不拷贝 techpack，其子 Makefile 依赖 OPPO 内部布局，直接并入会导致子 make 失败
+		# techpack：并入内核根，并补兼容软链（其子 Makefile 用 ../scripts、../techpack 相对路径）
+		if [ -d "$MOD_DIR/kernel/msm-5.4/techpack" ]; then
+			mkdir -p "${KERNEL_DIR}/techpack"
+			cp -a "$MOD_DIR/kernel/msm-5.4/techpack/." "${KERNEL_DIR}/techpack/"
+			ln -sfn ../scripts "${KERNEL_DIR}/techpack/scripts"
+			ln -sfn . "${KERNEL_DIR}/techpack/techpack"
+			ok "techpack merged with compat symlinks"
+		fi
 		# 树内存在指向 ../../../vendor/oplus/... 的符号链接（会跳出树外），
 		# 用 modules 仓库的实体目录替换，避免 Kconfig 打不开
 		fixed=0; failed=0; miss=0
