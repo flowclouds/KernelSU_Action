@@ -34,7 +34,24 @@ case "$KERNEL_SOURCE" in
 			mkdir -p "${KERNEL_DIR}/techpack"
 			cp -a "$MOD_DIR/kernel/msm-5.4/techpack/." "${KERNEL_DIR}/techpack/"
 		fi
-		ok "vendor overlay applied"
+		# 树内存在指向 ../../../vendor/oplus/... 的符号链接（会跳出树外），
+		# 用 modules 仓库的实体目录替换，避免 Kconfig 打不开
+		fixed=0
+		while IFS= read -r l; do
+			tgt=$(readlink "$l" 2>/dev/null) || continue
+			case "$tgt" in
+			*vendor/oplus/*)
+				rel=${tgt##*vendor/}
+				src_path="$MOD_DIR/vendor/$rel"
+				if [ -d "$src_path" ]; then
+					rm -f "$l"
+					cp -a "$src_path" "$l"
+					fixed=$((fixed + 1))
+				fi
+				;;
+			esac
+		done < <(find "${KERNEL_DIR}" -type l 2>/dev/null)
+		ok "vendor overlay applied (symlinks repaired: ${fixed})"
 	else
 		warn "modules repo clone failed; vendor overlay skipped"
 	fi
