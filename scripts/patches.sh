@@ -310,6 +310,13 @@ hooks_patch_apply() {
 
 	# ReSukiSU publishes scope-minimised hook patches keyed by kernel version.
 	if [ "$variant" = "resukisu" ]; then
+		# 优先使用本仓库自带的按版本 hook 补丁（含 5.4，ReSukiSU_Patches 未提供）
+		local bundled="${REPO_ROOT}/patches/kernel-${kver}.patch"
+		if [ -f "$bundled" ]; then
+			info "using bundled hook patch: patches/kernel-${kver}.patch"
+			( cd "$KERNEL_DIR" && apply_patch "$bundled" 1 ) && { endgroup; return 0; }
+			info "bundled hook patch for ${kver} did not apply; falling through"
+		fi
 		local dir="${WORKSPACE}/ReSukiSU_Patches"
 		[ -d "$dir" ] || retry 3 git clone -q --depth=1 \
 			https://github.com/ReSukiSU/ReSukiSU_Patches.git "$dir" || true
